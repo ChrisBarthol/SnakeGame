@@ -41,7 +41,7 @@ $( function() {
     game.newGame();
   } );
   
-  // Display the welcome message...FINALLY done with setup  
+  // Display the welcome message
   overlayMessage( WELCOME_MESSAGE, WELCOME_COLOR );
 
   /**
@@ -50,7 +50,7 @@ $( function() {
    */
   function Snake() {
 
-    var BEGINNING_LENGTH = 4,
+    var BEGINNING_LENGTH = 10,
         SEGMENT_COLOR = "green",
         BORDER_COLOR = "white",
         // Segments are the main stack of the snake's body
@@ -64,11 +64,8 @@ $( function() {
     for (var i = BEGINNING_LENGTH; i > 0; i--) {
       segments.push({x: i, y: 1});
     }
-
     /**
      * Accessor function required by Food object for food placement
-     *
-     * @return Array Array of existing snake segments
      */
     this.getSegments = function() {
       return segments;
@@ -86,8 +83,6 @@ $( function() {
 
     /**
      * Changes the snake's direction of travel
-     *
-     * @param Object newDirection From DIRECTIONS constant
      */
     this.setCurrentDirection = function( newDirection )
     {
@@ -98,9 +93,6 @@ $( function() {
 
     /**
      * Confirms the snake is not making an immediate 180 degree turn
-     *
-     * @param Object newDirection From DIRECTIONS constant
-     * @return bool Is the turn > 90 degrees
      */
     this.isNewDirectionReverse = function( newDirection ) {
       return ((currentDirection.x + newDirection.x) === 0 &&
@@ -116,9 +108,6 @@ $( function() {
 
     /**
      * Adds from the eaten food stack to the actual snake
-     * order really doesn't matter here, but I kept it
-     *
-     * @param Object food Instance of Food
      */
     this.feed = function( food ) {
       eatenFood.unshift(_.extend({}, food.getSegment() ));
@@ -126,20 +115,21 @@ $( function() {
 
     /**
      * Determines if the snake has hit one of the outside walls
-     *
-     * @return bool True if a wall has been hit
      */
     this.hasHitWall = function() {
       var head = segments[0];
       return (head.y < 0 || head.y >= (h / ch) || 
           head.x < 0 || head.x >= (w / cw)); 
     };
-
+    /**
+     * Determines if the snake has hit an inside wall
+     */
+    this.hasHitInnerWall = function( wall ) {
+      var head = segments[0];
+      return (head.x == wall.getSegment().x && head.y == wall.getSegment().y);
+    };
     /**
      * Determines if the snake has reached a piece of food
-     *
-     * @param Object food Instance of Food
-     * @return bool True if a piece of food has been reached
      */
     this.hasHitFood = function( food ) {
       var head = segments[0];
@@ -148,8 +138,6 @@ $( function() {
 
     /**
      * Determines if the snake is finished swallowing
-     *
-     * @return bool True if finished
      */
     this.isFoodSwallowed = function() {
       var tail = segments[segments.length -1],
@@ -160,8 +148,6 @@ $( function() {
 
     /**
      * Determines if the snake has collided with itself
-     *
-     * @return bool
      */
     this.hasHitSelf = function() {
       return (_.find(segments.slice(1), segments[0]));
@@ -176,6 +162,45 @@ $( function() {
         var snakePart = segments[i];
         drawTile(snakePart, SEGMENT_COLOR, BORDER_COLOR );
       }
+    };
+  }
+
+  function Wall() {
+    var SEGMENT_COLOR = "black",
+    BORDER_COLOR = "white",
+    segment = [];
+    FOOD_BUFFER = 2,
+
+    this.getSegment = function() {
+      return segment;
+    };
+
+    this.make = function( snake, food )
+    {
+      if (_.isEmpty( segment )) {
+        segment = {
+          // new wall position
+          x: _.random( FOOD_BUFFER, Math.ceil( w/cw ) - FOOD_BUFFER ),
+          y: _.random( FOOD_BUFFER, Math.ceil( h/ch ) - FOOD_BUFFER )
+        };  
+      } 
+      if (_.find(snake.getSegments(), segment)) {
+        // cannot put on snake, make new food
+        segment = {};
+        this.make( snake );
+      }
+      if (_.find(food.getSegment(), segment)) {
+        // cannot put on snake, make new food
+        segment = {};
+        this.make( food );
+      }
+      else  {
+          this.draw();
+      }
+    };
+
+    this.draw = function() {
+      drawTile( segment, SEGMENT_COLOR, BORDER_COLOR );
     };
   }
 
@@ -246,6 +271,7 @@ $( function() {
     var MESSAGE_COLOR = "black",
         snake = new Snake(),
         food = new Food(),
+        wall = new Wall(),
         // Should the snake grow the next iteration?
         grow = false,
         score = 0,
@@ -299,9 +325,10 @@ $( function() {
         clearCanvas();
         snake.draw();
         food.make( snake );
+        wall.make( snake, food);
         snake.move();
 
-        if ( snake.hasHitWall() || snake.hasHitSelf() ) {
+        if ( snake.hasHitWall() || snake.hasHitSelf() || snake.hasHitInnerWall( wall ) ) {
           that.endGame();
         }
 
@@ -316,6 +343,7 @@ $( function() {
         if ( snake.hasHitFood( food ) ) {
           snake.feed( food );
           food = new Food();
+          wall2 = new Wall();
           score++;
           // Make the snake faster (to a point)
           if ( loopTime > 10 )
@@ -363,6 +391,7 @@ $( function() {
       lastPaint = 0;
       snake = new Snake();
       food = new Food( snake );
+      wall = new Wall( snake, food);
       isPaused = false;
 
       isEnded = false;
